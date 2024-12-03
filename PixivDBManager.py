@@ -95,6 +95,13 @@ class PixivDBManager(object):
             except BaseException:
                 pass
                 
+            # add column caption
+            try:
+                c.execute(
+                    '''ALTER TABLE pixiv_master_image ADD COLUMN caption TEXT''')
+            except BaseException:
+                pass
+                
 
             c.execute('''CREATE TABLE IF NOT EXISTS pixiv_manga_image (
                             image_id INTEGER,
