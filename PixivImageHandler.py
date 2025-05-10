@@ -8,22 +8,23 @@ import shutil
 import time
 import traceback
 import pathlib
+from typing import Dict, List, Tuple
 import zipfile
 import tempfile
 from urllib.error import URLError
 
 from colorama import Fore, Style
-
 import datetime_z
 import PixivBrowserFactory
 import PixivConstant
 import PixivDownloadHandler
 import PixivHelper
+import PixivConfig
+import PixivImage
 from PixivDBManager import PixivDBManager
 from PixivException import PixivException
 
 __re_manga_page = re.compile(r'(\d+(_big)?_p\d+)')
-
 
 def process_image(caller,
                   config,
@@ -244,7 +245,7 @@ def process_image(caller,
                 target_dir = user_dir
 
             # For createPixivArchive option, if we're using a temporary directory
-            if config.createPixivArchive and temp_dir:
+            if config.createPixivArchive:
                 original_target_dir = target_dir
                 target_dir = temp_dir
                 PixivHelper.print_and_log('info', f'Downloading to temporary directory: {temp_dir}')
@@ -298,19 +299,12 @@ def process_image(caller,
                         filename = f"{splitted_filename[0]}{splitted_manga_page[0]}{os.sep}_p{splitted_manga_page[1]}{splitted_filename[1]}"
                 
                 # For createPixivArchive, store the mapping for sequential naming
+                # Extract page number for manga or use a counter for single images
                 if config.createPixivArchive:
-                    # Extract page number for manga or use a counter for single images
-                    if image.imageMode == 'manga':
-                        # Find the page number in the filename
-                        match = re.search(r'_p(\d+)', url)
-                        if match:
-                            page_num = int(match.group(1))
-                        else:
-                            page_num = current_img - 1
+                    if image.imageMode == 'manga' and (match := re.search(r'_p(\d+)', url)):
+                        page_num = int(match.group(1))
                     else:
                         page_num = current_img - 1
-                    
-                    # Get extension
                     _, file_extension = os.path.splitext(filename)
                     # Create sequential filename (001.jpg, 002.jpg, etc.)
                     sequential_name = f"{page_num+1:03d}{file_extension}"
@@ -448,179 +442,7 @@ def process_image(caller,
                 
             # For createPixivArchive, create the zip archive
             if config.createPixivArchive and temp_dir and len(manga_files) > 0:
-                PixivHelper.print_and_log('info', 'Creating zip archive...')
-                
-                # Determine directory structure and zip filename
-                if image.imageMode == 'manga' and config.createMangaDir:
-                    # For manga with createMangaDir, find the directory and create zip there
-                    first_filename = manga_files[0][2]
-                    dir_path = os.path.dirname(first_filename)
-                    
-                    # Parse the directory structure based on path
-                    parent_dir = os.path.dirname(dir_path)
-                    base_name = os.path.basename(dir_path)
-                    
-                    # Check if the filename format explicitly contains .zip extension
-                    if ".zip" in config.filenameMangaFormat:
-                        # Get the path parts
-                        format_parts = config.filenameMangaFormat.split(".zip")
-                        # Extract the first part as the zip path/name
-                        zip_path_format = format_parts[0]
-                        # Use the part after .zip for files inside the zip
-                        inside_zip_format = format_parts[1].lstrip('/')
-                        
-                        # Generate the zip filename without the inside part
-                        zip_filename = PixivHelper.make_filename(zip_path_format + ".zip",
-                                                               image,
-                                                               tagsSeparator=config.tagsSeparator,
-                                                               tagsLimit=config.tagsLimit,
-                                                               fileUrl=url,
-                                                               bookmark=bookmark,
-                                                               searchTags=search_tags,
-                                                               useTranslatedTag=config.useTranslatedTag,
-                                                               tagTranslationLocale=config.tagTranslationLocale)
-                        zip_filename = PixivHelper.sanitize_filename(zip_filename, original_target_dir)
-                    else:
-                        # Default behavior: use the last directory as the zip name
-                        zip_filename = os.path.join(parent_dir, f"{base_name}.zip")
-                else:
-                    # For single images or manga without createMangaDir
-                    first_filename = manga_files[0][2]
-                    dir_path = os.path.dirname(first_filename)
-                    
-                    # Parse the directory structure
-                    parent_dir = os.path.dirname(dir_path)
-                    base_name = os.path.basename(dir_path)
-                    
-                    # Check if the filename format explicitly contains .zip extension
-                    format_to_check = config.filenameFormat
-                    if image.imageMode == 'manga':
-                        format_to_check = config.filenameMangaFormat
-                    
-                    if ".zip" in format_to_check:
-                        # Get the path parts
-                        format_parts = format_to_check.split(".zip")
-                        # Extract the first part as the zip path/name
-                        zip_path_format = format_parts[0]
-                        # Use the part after .zip for files inside the zip
-                        inside_zip_format = format_parts[1].lstrip('/')
-                        
-                        # Generate the zip filename without the inside part
-                        zip_filename = PixivHelper.make_filename(zip_path_format + ".zip",
-                                                               image,
-                                                               tagsSeparator=config.tagsSeparator,
-                                                               tagsLimit=config.tagsLimit,
-                                                               fileUrl=url,
-                                                               bookmark=bookmark,
-                                                               searchTags=search_tags,
-                                                               useTranslatedTag=config.useTranslatedTag,
-                                                               tagTranslationLocale=config.tagTranslationLocale)
-                        zip_filename = PixivHelper.sanitize_filename(zip_filename, original_target_dir)
-                    else:
-                        # If base_name still contains page info, remove it
-                        base_name = re.sub(r'_p\d+$', '', base_name)
-                        zip_filename = os.path.join(parent_dir, f"{base_name}.zip")
-                
-                # Ensure the parent directory exists
-                zip_dir = os.path.dirname(zip_filename)
-                if not os.path.exists(zip_dir):
-                    os.makedirs(zip_dir, exist_ok=True)
-                
-                # Create the zip file
-                try:
-                    compression_type = getattr(zipfile, config.createPixivArchiveCompressionType, zipfile.ZIP_STORED)
-                    with zipfile.ZipFile(zip_filename, 'w', compression=compression_type, compresslevel=config.createPixivArchiveCompressionLevel) as z:
-                        for idx, (img_id, page_num, file_path) in enumerate(manga_files):
-                            if os.path.exists(file_path):
-                                # Determine the filename inside the zip
-                                # If format contains .zip, use the part after .zip as the format for inside files
-                                if ".zip" in format_to_check:
-                                    # For explicit .zip in format, use the after part for inside files
-                                    inside_name = PixivHelper.make_filename(inside_zip_format,
-                                                                         image,
-                                                                         tagsSeparator=config.tagsSeparator,
-                                                                         tagsLimit=config.tagsLimit,
-                                                                         fileUrl=os.path.basename(file_path),
-                                                                         bookmark=bookmark,
-                                                                         searchTags=search_tags,
-                                                                         useTranslatedTag=config.useTranslatedTag,
-                                                                         tagTranslationLocale=config.tagTranslationLocale)
-                                    # If inside name is a path, just use the basename
-                                    if os.sep in inside_name:
-                                        inside_name = os.path.basename(inside_name)
-                                else:
-                                    # Use sequential filename for the file inside the zip
-                                    if file_path in sequential_filenames:
-                                        inside_name = sequential_filenames[file_path]
-                                    else:
-                                        # Fallback to basename if not in the mapping
-                                        inside_name = os.path.basename(file_path)
-                                
-                                z.write(file_path, arcname=inside_name)
-                                # Update manga_files to store the inside path for manga images instead of the zip path
-                                manga_files[idx] = (img_id, page_num, inside_name)
-                except RuntimeError as e:
-                    # Handle case where compression module is not available
-                    if "requires zlib" in str(e) or "requires bz2" in str(e) or "requires lzma" in str(e):
-                        PixivHelper.print_and_log('error', f"Compression {config.createPixivArchiveCompressionType} not available: {e}. Falling back to ZIP_STORED.")
-                        with zipfile.ZipFile(zip_filename, 'w', compression=zipfile.ZIP_STORED) as z:
-                            for idx, (img_id, page_num, file_path) in enumerate(manga_files):
-                                if os.path.exists(file_path):
-                                    if ".zip" in format_to_check:
-                                        inside_name = PixivHelper.make_filename(inside_zip_format,
-                                                                             image,
-                                                                             tagsSeparator=config.tagsSeparator,
-                                                                             tagsLimit=config.tagsLimit,
-                                                                             fileUrl=os.path.basename(file_path),
-                                                                             bookmark=bookmark,
-                                                                             searchTags=search_tags,
-                                                                             useTranslatedTag=config.useTranslatedTag,
-                                                                             tagTranslationLocale=config.tagTranslationLocale)
-                                        if os.sep in inside_name:
-                                            inside_name = os.path.basename(inside_name)
-                                    else:
-                                        if file_path in sequential_filenames:
-                                            inside_name = sequential_filenames[file_path]
-                                        else:
-                                            inside_name = os.path.basename(file_path)
-                                        
-                                        z.write(file_path, arcname=inside_name)
-                                    # Update manga_files to store the inside path for manga images
-                                    manga_files[idx] = (img_id, page_num, inside_name)
-                    else:
-                        raise
-                
-                # If we're using a temporary directory, move the zip to the original location
-                if original_target_dir:
-                    # Determine the final location for the zip
-                    if ".zip" in format_to_check:
-                        # The zip_filename is already in the correct format and location
-                        final_zip = zip_filename
-                    else:
-                        if os.path.isabs(zip_filename):
-                            # If zip_filename is absolute, create relative path
-                            rel_path = os.path.relpath(os.path.dirname(zip_filename), temp_dir)
-                            if rel_path == '.':
-                                # If it's in the temp root, put it in the original target
-                                final_dir = original_target_dir
-                            else:
-                                # Otherwise, recreate the directory structure
-                                final_dir = os.path.join(original_target_dir, rel_path)
-                        else:
-                            # If relative, just join with original target
-                            final_dir = os.path.join(original_target_dir, os.path.dirname(zip_filename))
-                        
-                        final_zip = os.path.join(final_dir, os.path.basename(zip_filename))
-                    
-                    # Create directory if needed
-                    os.makedirs(os.path.dirname(final_zip), exist_ok=True)
-                    
-                    # Move the zip file
-                    PixivHelper.print_and_log('info', f'Moving zip to final location: {final_zip}')
-                    shutil.move(zip_filename, final_zip)
-                    
-                    # Store the zip path for database update
-                    filename = final_zip
+                filename, manga_files = _process_image_archive(config, temp_dir, original_target_dir, manga_files, image, url, bookmark, search_tags, sequential_filenames)
 
         if in_db and not exists:
             result = PixivConstant.PIXIVUTIL_CHECK_DOWNLOAD  # There was something in the database which had not been downloaded
@@ -636,14 +458,9 @@ def process_image(caller,
             except BaseException:
                 PixivHelper.print_and_log('error', f'Failed to insert image id:{image.imageId} to DB')
 
-            # If we're using createPixivArchive, update the database with the zip path for the master image
-            if config.createPixivArchive and temp_dir:
-                db.updateImage(image.imageId, image.imageTitle, filename, image.imageMode)
-            else:
-                db.updateImage(image.imageId, image.imageTitle, filename, image.imageMode)
+            db.updateImage(image.imageId, image.imageTitle, filename, image.imageMode)
 
             if len(manga_files) > 0:
-                # manga_files now contains the internal paths for images inside the zip
                 db.insertMangaImages(manga_files)
 
             # Save tags if enabled
@@ -883,3 +700,202 @@ def process_ugoira_local(caller, config):
         if os.path.exists(d) and d != "":
             PixivHelper.print_and_log("debug", f"Deleting path {d} in finally")
             shutil.rmtree(d)
+
+def _process_image_archive(
+        config: PixivConfig.PixivConfig,
+        temp_dir: str,
+        original_target_dir: str,
+        manga_files: List[Tuple[str, int, str]],
+        image: PixivImage,
+        url: str,
+        bookmark: bool,
+        search_tags: str, 
+        sequential_filenames: Dict[str, str]
+) -> Tuple[str, List[Tuple[str, int, str]]]:
+    """
+    Create a zip archive of downloaded image files.
+    
+    Args:
+        config: The configuration object
+        temp_dir: Temporary directory where files are stored
+        original_target_dir: Original target directory for the files
+        manga_files: List of manga files to include in the archive
+        image: The image object with metadata
+        url: URL of the image
+        bookmark: Bookmark flag
+        search_tags: Search tags used
+        sequential_filenames: Mapping of original filenames to sequential numbers
+        
+    Returns:
+        tuple: (final_zip_path, updated_manga_files)
+    """
+    PixivHelper.print_and_log('info', 'Creating zip archive...')
+    zip_filename: str = None
+
+    # Determine directory structure and zip filename
+    if image.imageMode == 'manga' and config.createMangaDir:
+        # For manga with createMangaDir, find the directory and create zip there
+        first_filename = manga_files[0][2]
+        dir_path = os.path.dirname(first_filename)
+        
+        # Parse the directory structure based on path
+        parent_dir = os.path.dirname(dir_path)
+        base_name = os.path.basename(dir_path)
+        
+        # Check if the filename format explicitly contains .zip extension
+        if ".zip" in config.filenameMangaFormat:
+            # Get the path parts
+            format_parts = config.filenameMangaFormat.split(".zip")
+            # Extract the first part as the zip path/name
+            zip_path_format = format_parts[0]
+            # Use the part after .zip for files inside the zip
+            inside_zip_format = format_parts[1].lstrip('/')
+            
+            # Generate the zip filename without the inside part
+            zip_filename = PixivHelper.make_filename(zip_path_format + ".zip",
+                                                   image,
+                                                   tagsSeparator=config.tagsSeparator,
+                                                   tagsLimit=config.tagsLimit,
+                                                   fileUrl=url,
+                                                   bookmark=bookmark,
+                                                   searchTags=search_tags,
+                                                   useTranslatedTag=config.useTranslatedTag,
+                                                   tagTranslationLocale=config.tagTranslationLocale)
+            zip_filename = PixivHelper.sanitize_filename(zip_filename, original_target_dir)
+        else:
+            # Default behavior: use the last directory as the zip name
+            zip_filename = os.path.join(parent_dir, f"{base_name}.zip")
+    else:
+        # For single images or manga without createMangaDir
+        first_filename = manga_files[0][2]
+        dir_path = os.path.dirname(first_filename)
+        
+        # Parse the directory structure
+        parent_dir = os.path.dirname(dir_path)
+        base_name = os.path.basename(dir_path)
+        
+        # Check if the filename format explicitly contains .zip extension
+        format_to_check = config.filenameFormat
+        if image.imageMode == 'manga':
+            format_to_check = config.filenameMangaFormat
+        
+        if ".zip" in format_to_check:
+            # Get the path parts
+            format_parts = format_to_check.split(".zip")
+            # Extract the first part as the zip path/name
+            zip_path_format = format_parts[0]
+            # Use the part after .zip for files inside the zip
+            inside_zip_format = format_parts[1].lstrip('/')
+            
+            # Generate the zip filename without the inside part
+            zip_filename = PixivHelper.make_filename(zip_path_format + ".zip",
+                                                   image,
+                                                   tagsSeparator=config.tagsSeparator,
+                                                   tagsLimit=config.tagsLimit,
+                                                   fileUrl=url,
+                                                   bookmark=bookmark,
+                                                   searchTags=search_tags,
+                                                   useTranslatedTag=config.useTranslatedTag,
+                                                   tagTranslationLocale=config.tagTranslationLocale)
+            zip_filename = PixivHelper.sanitize_filename(zip_filename, original_target_dir)
+        else:
+            # If base_name still contains page info, remove it
+            base_name = re.sub(r'_p\d+$', '', base_name)
+            zip_filename = os.path.join(parent_dir, f"{base_name}.zip")
+    
+    # Ensure the parent directory exists
+    zip_dir = os.path.dirname(zip_filename)
+    if not os.path.exists(zip_dir):
+        os.makedirs(zip_dir, exist_ok=True)
+    
+    # Create the zip file
+    try:
+        compression_type = getattr(zipfile, config.createPixivArchiveCompressionType, zipfile.ZIP_STORED)
+        with zipfile.ZipFile(zip_filename, 'w', compression=compression_type, compresslevel=config.createPixivArchiveCompressionLevel) as z:
+            for idx, (img_id, page_num, file_path) in enumerate(manga_files):
+                if os.path.exists(file_path):
+                    # Determine the filename inside the zip
+                    # If format contains .zip, use the part after .zip as the format for inside files
+                    if ".zip" in format_to_check:
+                        # For explicit .zip in format, use the after part for inside files
+                        inside_name = PixivHelper.make_filename(inside_zip_format,
+                                                                image,
+                                                                tagsSeparator=config.tagsSeparator,
+                                                                tagsLimit=config.tagsLimit,
+                                                                fileUrl=os.path.basename(file_path),
+                                                                bookmark=bookmark,
+                                                                searchTags=search_tags,
+                                                                useTranslatedTag=config.useTranslatedTag,
+                                                                tagTranslationLocale=config.tagTranslationLocale)
+                        # If inside name is a path, just use the basename
+                        if os.sep in inside_name:
+                            inside_name = os.path.basename(inside_name)
+                    else:
+                        # Use sequential filename for the file inside the zip
+                        if file_path in sequential_filenames:
+                            inside_name = sequential_filenames[file_path]
+                        else:
+                            # Fallback to basename if not in the mapping
+                            inside_name = os.path.basename(file_path)
+                    
+                    z.write(file_path, arcname=inside_name)
+                    # Update manga_files to store the inside path for manga images instead of the zip path
+                    manga_files[idx] = (img_id, page_num, inside_name)
+    except RuntimeError as e:
+        # Handle case where compression module is not available
+        if "requires zlib" in str(e) or "requires bz2" in str(e) or "requires lzma" in str(e):
+            PixivHelper.print_and_log('error', f"Compression {config.createPixivArchiveCompressionType} not available: {e}. Falling back to ZIP_STORED.")
+            with zipfile.ZipFile(zip_filename, 'w', compression=zipfile.ZIP_STORED) as z:
+                for idx, (img_id, page_num, file_path) in enumerate(manga_files):
+                    if not os.path.exists(file_path):
+                        continue
+                    if ".zip" in format_to_check:
+                        inside_name = PixivHelper.make_filename(inside_zip_format,
+                                                                image,
+                                                                tagsSeparator=config.tagsSeparator,
+                                                                tagsLimit=config.tagsLimit,
+                                                                fileUrl=os.path.basename(file_path),
+                                                                bookmark=bookmark,
+                                                                searchTags=search_tags,
+                                                                useTranslatedTag=config.useTranslatedTag,
+                                                                tagTranslationLocale=config.tagTranslationLocale)
+                        if os.sep in inside_name:
+                            inside_name = os.path.basename(inside_name)
+                    else:
+                        if file_path in sequential_filenames:
+                            inside_name = sequential_filenames[file_path]
+                        else:
+                            inside_name = os.path.basename(file_path)
+                        
+                        z.write(file_path, arcname=inside_name)
+                    # Update manga_files to store the inside path for manga images
+                    manga_files[idx] = (img_id, page_num, inside_name)
+        else:
+            raise
+    
+    # Determine the final zip location when using a temporary directory.
+    # If using explicit .zip in format string: use the generated filename as is
+    # Otherwise: preserve directory structure relative to temp_dir when moving to original_target_dir,
+    # handling both absolute and relative paths appropriately.
+    final_zip = zip_filename
+    if original_target_dir:
+        if ".zip" in format_to_check:
+            final_zip = zip_filename
+        else:
+            if os.path.isabs(zip_filename):
+                rel_path = os.path.relpath(os.path.dirname(zip_filename), temp_dir)
+                if rel_path == '.':
+                    final_dir = original_target_dir
+                else:
+                    final_dir = os.path.join(original_target_dir, rel_path)
+            else:
+                final_dir = os.path.join(original_target_dir, os.path.dirname(zip_filename))
+            
+            final_zip = os.path.join(final_dir, os.path.basename(zip_filename))
+        
+        os.makedirs(os.path.dirname(final_zip), exist_ok=True)
+        
+        PixivHelper.print_and_log('info', f'Moving zip to final location: {final_zip}')
+        shutil.move(zip_filename, final_zip)
+    
+    return final_zip, manga_files
