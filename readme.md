@@ -757,8 +757,19 @@ Please refer run with `--help` for latest information.
   Append the query tags in tagslist.txt to the root directory as save folder.
 - urlDumpFilename
 
-  Define the dump filename, use python strftime() format.
-  Default value is 'url_list_%Y%m%d'
+  URL dump filename prefix for useList option (for download by list). The default value is "url_list_%Y%m%d"
+- useTranslatedTag
+
+  Use translated tags when downloading.
+- tagTranslationLocale
+
+  Locale for translated tags when downloading.
+- createPixivArchive
+
+  Set to `True` to package downloaded artworks into ZIP archives. 
+  For example, if the artwork would be downloaded to "a/b/c" directory, it will instead create a "c.zip" file in "a/b".
+  This also supports explicit ".zip" format in the filename format. For example, if the format is "%artist%/%image_id%.zip/p_%page_number%", it will create a zip file at "%artist%/%image_id%.zip" with files inside named "p_%page_number%".
+  All database entries point to the ZIP files instead of individual images.
 - filenameFormatSketch
 
   Similar to filename format, but for Pixiv Sketch.

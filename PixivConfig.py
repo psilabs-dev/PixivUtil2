@@ -141,6 +141,13 @@ class PixivConfig():
         ConfigItem("Filename", "tagTranslationLocale", "en"),
         ConfigItem("Filename", "customBadChars", "", followup=PixivHelper.parse_custom_sanitizer),
         ConfigItem("Filename", "customCleanUpRe", "", followup=PixivHelper.parse_custom_clean_up_re),
+        ConfigItem("Filename", "createPixivArchive", False),
+        ConfigItem("Filename", "createPixivArchiveCompressionType", "ZIP_STORED", 
+                  restriction=lambda x: x in ["ZIP_STORED", "ZIP_DEFLATED", "ZIP_BZIP2", "ZIP_LZMA"],
+                  error_message="Compression type must be one of: ZIP_STORED, ZIP_DEFLATED, ZIP_BZIP2, ZIP_LZMA"),
+        ConfigItem("Filename", "createPixivArchiveCompressionLevel", 6,
+                  restriction=lambda x: 0 <= int(x) <= 9,
+                  error_message="Compression level must be an integer between 0 and 9"),
 
         ConfigItem("Authentication", "username", ""),
         ConfigItem("Authentication", "password", ""),
