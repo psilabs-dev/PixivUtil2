@@ -85,18 +85,41 @@ def process_image(caller,
             exists = db.cleanupFileExists(r[0])
             in_db = True
 
+        # Extract archive images to temporary directory to check if individual files exist/can be skipped
+        # providing feature parity between archive and non-archive modes
+        if in_db and config.createPixivArchive and exists:
+            PixivHelper.print_and_log('info', f'Archive exists for {image_id}, extracting to check files individually')
+            
+            try:
+                # Get the archive filename from DB
+                archive_path = r[0]
+                
+                # Extract archive to temp directory for individual file checking
+                if zipfile.is_zipfile(archive_path):
+                    PixivHelper.print_and_log('info', f'Extracting {archive_path} to {temp_dir}')
+                    with zipfile.ZipFile(archive_path, 'r') as zip_ref:
+                        zip_ref.extractall(temp_dir)
+                    
+                    # Store information about extracted files for later comparison
+                    extracted_files = {}
+                    for file in os.listdir(temp_dir):
+                        file_path = os.path.join(temp_dir, file)
+                        if os.path.isfile(file_path):
+                            extracted_files[file] = os.path.getsize(file_path)
+                    
+                    PixivHelper.print_and_log('info', f'Extracted {len(extracted_files)} files to temporary directory')
+                else:
+                    PixivHelper.print_and_log('warn', f'File is not a valid zip archive: {archive_path}')
+            except Exception as e:
+                PixivHelper.print_and_log('error', f'Error extracting archive: {e}')
+                # If extraction fails, continue normally to re-download
+        
         # skip if already recorded in db and alwaysCheckFileSize is disabled and overwrite is disabled.
         if in_db and not config.alwaysCheckFileSize and not config.overwrite and not reencoding:
             PixivHelper.print_and_log(None, f'Already downloaded in DB: {image_id}')
             gc.collect()
             return PixivConstant.PIXIVUTIL_SKIP_DUPLICATE_NO_WAIT
         
-        # skip if already downloaded in db as an archive.
-        if in_db and config.createPixivArchive:
-            PixivHelper.print_and_log(None, f'Already downloaded in DB: {image_id}')
-            gc.collect()
-            return PixivConstant.PIXIVUTIL_SKIP_DUPLICATE_NO_WAIT
-
         # get the medium page
         try:
             (image, parse_medium_page) = PixivBrowserFactory.getBrowser().getImagePage(image_id=image_id,
@@ -315,6 +338,18 @@ def process_image(caller,
                     # Create sequential filename (001.jpg, 002.jpg, etc.)
                     sequential_name = f"{page_num+1:03d}{file_extension}"
                     sequential_filenames[filename] = sequential_name
+                    
+                    # Check if the file with sequential name already exists in extracted archive
+                    extracted_file_path = os.path.join(temp_dir, sequential_name)
+                    if in_db and exists and os.path.exists(extracted_file_path):
+                        # Use this file instead of downloading it again
+                        PixivHelper.print_and_log('info', f'{prefix}File already exists in archive: {sequential_name}')
+                        # Set the path to the extracted file
+                        filename = extracted_file_path
+                        manga_files.append((image_id, page, filename))
+                        page = page + 1
+                        current_img = current_img + 1
+                        continue
                 
                 PixivHelper.print_and_log('info', f'{prefix}Filename  : {filename}')
 
@@ -519,8 +554,8 @@ def process_image(caller,
 
         raise
     finally:
-        # Clean up temporary directory if it was created
-        if temp_dir and os.path.exists(temp_dir):
+        # Clean up temporary directory if it was created and we're not in the middle of checking extracted files
+        if temp_dir and os.path.exists(temp_dir) and not (in_db and config.createPixivArchive and exists):
             PixivHelper.print_and_log('info', f'Cleaning up temporary directory: {temp_dir}')
             shutil.rmtree(temp_dir)
 

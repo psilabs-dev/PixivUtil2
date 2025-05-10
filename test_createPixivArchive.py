@@ -215,5 +215,87 @@ class TestCreatePixivArchive(unittest.TestCase):
             files = z.namelist()
             self.assertEqual(len(files), 1, "Should have 1 file in the ZIP archive")
 
+    def test_extract_existing_archive(self):
+        """Test extracting and checking an existing archive"""
+        # Enable createPixivArchive
+        self.config.createPixivArchive = True
+        self.config.overwrite = False
+        self.config.alwaysCheckFileSize = False
+        
+        # Create a sample archive in the database
+        mock_image = self._setup_mock_image(is_manga=True)
+        
+        # Create a test archive file
+        test_artist_dir = os.path.join(self.temp_dir, "test_artist")
+        os.makedirs(test_artist_dir, exist_ok=True)
+        archive_path = os.path.join(test_artist_dir, "test_archive.zip")
+        
+        # Create files that will be in the archive
+        with zipfile.ZipFile(archive_path, 'w') as z:
+            z.writestr("page1.jpg", "test page 1 content")
+            z.writestr("page2.jpg", "test page 2 content")
+        
+        # Setup DB to simulate existing archive
+        self.mock_caller.__dbManager__.selectImageByImageId.return_value = [archive_path]
+        self.mock_caller.__dbManager__.cleanupFileExists.return_value = True
+        
+        print(f"Debug: archive_path={archive_path}, exists={os.path.exists(archive_path)}")
+        
+        # Direct test of our modified condition 
+        # Let's manually test the condition that should trigger our archive extraction:
+        # if in_db and config.createPixivArchive and exists:
+        in_db = True
+        exists = True
+        
+        print(f"DEBUG: Condition would evaluate to: {in_db and self.config.createPixivArchive and exists}")
+        
+        # Now we'll only test the archive extraction part, not the whole process_image flow
+        # This avoids issues with the mock objects not being fully set up for downstream processing
+        with mock.patch('PixivHelper.print_and_log') as mock_log:
+            with mock.patch('zipfile.ZipFile.extractall') as mock_extract:
+                # We'll patch getBrowser to raise an exception after extraction to avoid downstream errors
+                with mock.patch('PixivBrowserFactory.getBrowser', side_effect=Exception("Stopping after extraction")):
+                    try:
+                        process_image(self.mock_caller, self.config, image_id=mock_image.imageId)
+                    except Exception as e:
+                        # We expect an exception from our patched getBrowser
+                        if "Stopping after extraction" not in str(e):
+                            raise  # Only handle our expected exception
+                    
+                    # Verify that extractall was called
+                    mock_extract.assert_called_once()
+                    # Check if the extraction log message was printed
+                    extract_msg_found = False
+                    for call in mock_log.call_args_list:
+                        args, _ = call
+                        if len(args) >= 2 and 'extracting' in str(args[1]).lower():
+                            extract_msg_found = True
+                            break
+                    
+                    self.assertTrue(extract_msg_found, "Archive extraction message not found in logs")
+                
+        # Now test the case where the extraction fails
+        with mock.patch('zipfile.is_zipfile', return_value=True):
+            with mock.patch('zipfile.ZipFile') as mock_zipfile:
+                mock_zipfile.return_value.__enter__.return_value.extractall.side_effect = Exception("Test extraction error")
+                # Same approach to avoid downstream errors
+                with mock.patch('PixivBrowserFactory.getBrowser', side_effect=Exception("Stopping after extraction")):
+                    with mock.patch('PixivHelper.print_and_log') as mock_log:
+                        try:
+                            process_image(self.mock_caller, self.config, image_id=mock_image.imageId)
+                        except Exception as e:
+                            # We expect an exception from our patched getBrowser
+                            if "Stopping after extraction" not in str(e):
+                                raise  # Only handle our expected exception
+
+                        # Verify error was logged
+                        error_msg_found = False
+                        for call in mock_log.call_args_list:
+                            args, _ = call
+                            if len(args) >= 2 and 'error extracting archive' in str(args[1]).lower():
+                                error_msg_found = True
+                                break
+                        self.assertTrue(error_msg_found, "Error extraction message not found in logs")
+
 if __name__ == '__main__':
     unittest.main() 

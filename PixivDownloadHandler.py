@@ -2,6 +2,7 @@
 import codecs
 import gc
 import os
+import re
 import shlex
 import subprocess
 import sys
@@ -66,6 +67,19 @@ def download_image(caller,
         try:
             try:
                 is_exists = os.path.isfile(filename_save)
+
+                # Check for sequential filename if it's in a temporary directory (archive extraction)
+                is_in_temp_dir = False
+                if config.createPixivArchive and 'pixiv_archive_' in filename_save:
+                    base_name = os.path.basename(filename_save)
+                    # Check if this is using a sequential filename pattern (like 001.jpg)
+                    if re.match(r'\d{3}\.\w+$', base_name):
+                        is_in_temp_dir = True
+                        
+                # If in a temporary directory with extracted files
+                if is_in_temp_dir and is_exists:
+                    PixivHelper.print_and_log('info', f"\rUsing file from extracted archive: {filename}")
+                    return (PixivConstant.PIXIVUTIL_SKIP_DUPLICATE, filename_save)
 
                 if not overwrite and not config.alwaysCheckFileSize:
                     PixivHelper.print_and_log(None, '\rChecking local filename...', newline=False)
