@@ -90,6 +90,12 @@ def process_image(caller,
             PixivHelper.print_and_log(None, f'Already downloaded in DB: {image_id}')
             gc.collect()
             return PixivConstant.PIXIVUTIL_SKIP_DUPLICATE_NO_WAIT
+        
+        # skip if already downloaded in db as an archive.
+        if in_db and config.createPixivArchive:
+            PixivHelper.print_and_log(None, f'Already downloaded in DB: {image_id}')
+            gc.collect()
+            return PixivConstant.PIXIVUTIL_SKIP_DUPLICATE_NO_WAIT
 
         # get the medium page
         try:
