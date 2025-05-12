@@ -127,12 +127,11 @@ def perform_migration(conn: sqlite3.Connection, root_dir: str, dry_run: bool=Tru
                     logger.warning(f"[{image_id}] DELETED ALL IMAGES FOR MEMBER: {member_id}")
             continue
         new_save_name: str = os.path.join(root_dir, str(member_id), str(image_id))
-        new_save_name_parent: str = os.path.dirname(new_save_name)
-        assert not os.path.exists(new_save_name_parent), f"[{image_id}] directory_to_create {new_save_name_parent} already exists"
+        assert not os.path.exists(new_save_name), f"[{image_id}] directory_to_create {new_save_name} already exists"
 
         if not dry_run:
-            os.makedirs(new_save_name_parent)
-        logger.info(f"[{image_id}] CREATE DIRECTORY:            {new_save_name_parent}")
+            os.makedirs(new_save_name)
+        logger.info(f"[{image_id}] CREATE DIRECTORY:            {new_save_name}")
 
         pixiv_manga_images = conn.execute("SELECT * FROM pixiv_manga_image WHERE image_id = ?", (image_id,)).fetchall()
         for manga_image in pixiv_manga_images:
@@ -156,7 +155,7 @@ def perform_migration(conn: sqlite3.Connection, root_dir: str, dry_run: bool=Tru
                     logger.warning(f"[{image_id}] DELETED MANGA IMAGE:          {manga_image_save_name}")
                 continue
             __basename = os.path.basename(manga_image_save_name)
-            new_manga_image_save_name: str = os.path.join(new_save_name_parent, __basename)
+            new_manga_image_save_name: str = os.path.join(new_save_name, __basename)
 
             # Simulate move and database update.
             if not dry_run:
