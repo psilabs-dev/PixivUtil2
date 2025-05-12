@@ -48,7 +48,10 @@ def get_image_id(dir: str) -> int:
     Example:
     - a/b/c/{123} member name/{456} image title/p_01.jpg -> 456
     """
-    match = re.search(r'{(\d+)}', os.path.dirname(dir))
+    # For a file path like "/workdir/downloads/{4159} ありくい/{8097} ロ/p_0.png"
+    # We need to get "{8097} ロ" part, which is the parent directory of the file
+    parent_dir = os.path.dirname(dir)  # gets "/workdir/downloads/{4159} ありくい/{8097} ロ"
+    match = re.search(r'{(\d+)}', os.path.basename(parent_dir))  # look at just "{8097} ロ"
     if match:
         return int(match.group(1))
     return None
