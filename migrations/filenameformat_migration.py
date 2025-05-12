@@ -13,6 +13,7 @@ import sqlite3
 import time
 import logging
 from datetime import datetime
+from typing import Optional
 
 def setup_logger(log_file_path):
     """Set up logging to both console and file."""
@@ -56,6 +57,21 @@ def get_image_id(dir: str) -> int:
         return int(match.group(1))
     return None
 
+def delete_images_by_member(conn: sqlite3.Connection, member_id: int):
+    master_images = conn.execute("SELECT image_id FROM pixiv_master_image WHERE member_id = ?", (member_id,)).fetchall()
+    for image_id, in master_images:
+        delete_manga_images_by_image_id(conn, image_id)
+    conn.execute("DELETE FROM pixiv_master_image WHERE member_id = ?", (member_id,))
+    conn.commit()
+
+def delete_manga_images_by_image_id(conn: sqlite3.Connection, image_id: int):
+    conn.execute("DELETE FROM pixiv_manga_image WHERE image_id = ?", (image_id,))
+    conn.commit()
+
+def delete_manga_image(conn: sqlite3.Connection, image_id: int, page: int):
+    conn.execute("DELETE FROM pixiv_manga_image WHERE image_id = ? AND page = ?", (image_id, page))
+    conn.commit()
+
 def update_manga_image(conn: sqlite3.Connection, image_id: int, manga_image_save_name: str, new_manga_image_save_name: str):
     shutil.move(manga_image_save_name, new_manga_image_save_name)
     conn.execute("UPDATE pixiv_manga_image SET save_name = ? WHERE image_id = ?", (new_manga_image_save_name, image_id))
@@ -94,12 +110,22 @@ def perform_migration(conn: sqlite3.Connection, root_dir: str, dry_run: bool=Tru
         image_id: int       = master_image[0]
         member_id: int      = master_image[1]
         save_name: str      = master_image[3]
-        assert image_id
-        assert member_id
-        assert save_name
+        assert image_id is not None, f"[{image_id}] image_id is None"
+        assert member_id is not None, f"[{image_id}] member_id is None"
+        assert save_name is not None, f"[{image_id}] save_name is None"
         assert image_id == get_image_id(save_name), f"[{image_id}] image_id mismatch: got {get_image_id(save_name)}"
         assert member_id == get_member_id(save_name), f"[{image_id}] member_id mismatch: got {get_member_id(save_name)}"
-        assert os.path.exists(save_name), f"[{image_id}] save_name {save_name} does not exist"
+
+        # Check for .zip files and convert to .gif for existence check
+        check_save_name = save_name.replace('.zip', '.gif') if save_name.endswith('.zip') else save_name
+        if not os.path.exists(check_save_name):
+            logger.warning(f"[{image_id}] save_name {check_save_name} does not exist (incomplete migration): checking directory.")
+            if not os.path.exists(os.path.dirname(check_save_name)):
+                logger.error(f"[{image_id}] directory {os.path.dirname(check_save_name)} does not exist")
+                if not dry_run:
+                    delete_images_by_member(conn, member_id)
+                    logger.warning(f"[{image_id}] DELETED ALL IMAGES FOR MEMBER: {member_id}")
+            continue
         new_save_name: str = os.path.join(root_dir, str(member_id), str(image_id))
         new_save_name_parent: str = os.path.dirname(new_save_name)
         assert not os.path.exists(new_save_name_parent), f"[{image_id}] directory_to_create {new_save_name_parent} already exists"
@@ -110,13 +136,27 @@ def perform_migration(conn: sqlite3.Connection, root_dir: str, dry_run: bool=Tru
 
         pixiv_manga_images = conn.execute("SELECT * FROM pixiv_manga_image WHERE image_id = ?", (image_id,)).fetchall()
         for manga_image in pixiv_manga_images:
-            manga_image_save_name: str = manga_image[2]
-            assert os.path.exists(manga_image_save_name), f"[{image_id}] manga_image_save_name {manga_image_save_name} does not exist"
+            page: int = manga_image[1]
+            manga_image_save_name: Optional[str] = manga_image[2]
+            assert page is not None, f"[{image_id}] page is None"
+
+            if manga_image_save_name is None:
+                logger.error(f"[{image_id}] Encountered Null manga_image_save_name for page {page}")
+                if not dry_run:
+                    delete_manga_image(conn, image_id, page)
+                    logger.warning(f"[{image_id}] DELETED MANGA IMAGE:          {manga_image_save_name}")
+                continue
+            # Check for .zip files and convert to .gif for existence check
+            check_manga_save_name = manga_image_save_name.replace('.zip', '.gif') if manga_image_save_name.endswith('.zip') else manga_image_save_name
+
+            if not os.path.exists(check_manga_save_name):
+                logger.error(f"[{image_id}] manga_image_save_name {check_manga_save_name} does not exist")
+                if not dry_run:
+                    delete_manga_image(conn, image_id, page)
+                    logger.warning(f"[{image_id}] DELETED MANGA IMAGE:          {manga_image_save_name}")
+                continue
             __basename = os.path.basename(manga_image_save_name)
             new_manga_image_save_name: str = os.path.join(new_save_name_parent, __basename)
-
-            # # this is not needed since the directory shouldn't exist.
-            # assert not os.path.exists(file_to_create), f"[{image_id}] file_to_create {file_to_create} already exists"
 
             # Simulate move and database update.
             if not dry_run:
