@@ -1,5 +1,5 @@
 """
-Script to handle filenameformat migration.
+Script to handle filenameformat migration for a docker container (I've already rsync restored at least 10 times already while running this script)
 
 Renames filenameformat  {%member_id%} %artist%/{%image_id%} %title%/p_0%page_number% to %member_id%/%image_id%/p_0%page_number%.
 Does not archive or change page filename.
@@ -73,12 +73,16 @@ def delete_manga_image(conn: sqlite3.Connection, image_id: int, page: int):
     conn.commit()
 
 def update_manga_image(conn: sqlite3.Connection, image_id: int, manga_image_save_name: str, new_manga_image_save_name: str):
-    shutil.move(manga_image_save_name, new_manga_image_save_name)
+    check_save_name = manga_image_save_name.replace('.zip', '.gif') if manga_image_save_name.endswith('.zip') else manga_image_save_name
+    shutil.copy2(check_save_name, new_manga_image_save_name)
+    os.rename(new_manga_image_save_name, new_manga_image_save_name.replace('.zip', '.gif'))
     conn.execute("UPDATE pixiv_manga_image SET save_name = ? WHERE image_id = ?", (new_manga_image_save_name, image_id))
     conn.commit()
 
 def update_master_image(conn: sqlite3.Connection, image_id: int, save_name: str, new_save_name: str):
-    shutil.move(save_name, new_save_name)
+    check_save_name = save_name.replace('.zip', '.gif') if save_name.endswith('.zip') else save_name
+    shutil.copy2(check_save_name, new_save_name)
+    os.rename(new_save_name, new_save_name.replace('.zip', '.gif'))
     conn.execute("UPDATE pixiv_master_image SET save_name = ? WHERE image_id = ?", (new_save_name, image_id))
     conn.commit()
 
@@ -164,7 +168,9 @@ def perform_migration(conn: sqlite3.Connection, root_dir: str, dry_run: bool=Tru
         if not dry_run:
             update_master_image(conn, image_id, save_name, new_save_name)
         logger.info(f"[{image_id}] UPDATE MASTER IMAGE:         {save_name} -> {new_save_name}")
-
+        logger.info(f"[{image_id}] DELETE OLD MASTER IMAGE:      {os.path.dirname(check_save_name)}")
+        if not dry_run:
+            shutil.rmtree(os.path.dirname(check_save_name))
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--database", type=str, default="db.sqlite")
