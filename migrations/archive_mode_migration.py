@@ -100,7 +100,7 @@ def verify_migration(conn: sqlite3.Connection):
         logger.error(f"Migration verification failed with {errors} errors")
     return errors == 0
 
-def perform_migration(conn: sqlite3.Connection, dry_run: bool=True):
+def perform_migration(root_dir: str,conn: sqlite3.Connection, dry_run: bool=True):
     pixiv_master_images = conn.execute("SELECT * FROM pixiv_master_image").fetchall()
     for master_image in pixiv_master_images:
         image_id: int       = master_image[0]
@@ -110,14 +110,14 @@ def perform_migration(conn: sqlite3.Connection, dry_run: bool=True):
         # Validate input
         assert image_id
         assert member_id
-        assert save_name
         assert os.path.exists(save_name), f"[{image_id}] save_name {save_name} does not exist"
-        assert os.path.isdir(save_name), f"[{image_id}] save_name {save_name} is not a directory"
+        assert os.path.isfile(save_name), f"[{image_id}] save_name {save_name} is not a file"
         assert image_id == get_image_id(save_name), f"[{image_id}] image_id mismatch: got {get_image_id(save_name)}"
         assert member_id == get_member_id(save_name), f"[{image_id}] member_id mismatch: got {get_member_id(save_name)}"
-        
-        zip_file_path = f"{save_name}.zip"
+
+        zip_file_path = f"{os.path.dirname(save_name)}.zip"
         assert not os.path.exists(zip_file_path), f"[{image_id}] zip file already exists: {zip_file_path}"
+        assert os.path.join(root_dir, str(member_id), "pixiv_" + str(image_id) + ".zip") == zip_file_path, f"[{image_id}] zip file path mismatch: got {zip_file_path}"
 
         logger.info(f"[{image_id}] PREPARING TO CREATE ZIP:     {zip_file_path}")
         pixiv_manga_images = conn.execute("SELECT * FROM pixiv_manga_image WHERE image_id = ?", (image_id,)).fetchall()
