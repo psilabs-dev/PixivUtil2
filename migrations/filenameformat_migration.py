@@ -1,7 +1,7 @@
 """
 Script to handle filenameformat migration for a docker container (I've already rsync restored at least 10 times already while running this script)
 
-Renames filenameformat  {%member_id%} %artist%/{%image_id%} %title%/p_0%page_number% to %member_id%/%image_id%/p_0%page_number%.
+Renames filenameformat  {%member_id%} %artist%/{%image_id%} %title%/p_0%page_number% to %member_id%/pixiv_%image_id%/p_0%page_number%.
 Does not archive or change page filename.
 """
 
@@ -72,6 +72,11 @@ def delete_manga_image(conn: sqlite3.Connection, image_id: int, page: int):
     conn.execute("DELETE FROM pixiv_manga_image WHERE image_id = ? AND page = ?", (image_id, page))
     conn.commit()
 
+def delete_master_image(conn: sqlite3.Connection, image_id: int):
+    conn.execute("DELETE FROM pixiv_manga_image WHERE image_id = ?", (image_id,))
+    conn.execute("DELETE FROM pixiv_master_image WHERE image_id = ?", (image_id,))
+    conn.commit()
+
 def update_manga_image(conn: sqlite3.Connection, image_id: int, manga_image_save_name: str, new_manga_image_save_name: str):
     check_save_name = manga_image_save_name.replace('.zip', '.gif') if manga_image_save_name.endswith('.zip') else manga_image_save_name
     shutil.copy2(check_save_name, new_manga_image_save_name)
@@ -92,13 +97,15 @@ def verify_migration(conn: sqlite3.Connection):
     master_images = conn.execute("SELECT image_id, save_name FROM pixiv_master_image").fetchall()
     errors = 0
     for image_id, save_name in master_images:
-        if not os.path.exists(save_name):
-            logger.error(f"[{image_id}] Master image file not found: {save_name}")
+        check_save_name = save_name.replace('.zip', '.gif') if save_name.endswith('.zip') else save_name
+        if not os.path.exists(check_save_name):
+            logger.error(f"[{image_id}] Master image file not found: {check_save_name}")
             errors += 1
         manga_images = conn.execute("SELECT save_name FROM pixiv_manga_image WHERE image_id = ?", (image_id,)).fetchall()
         for (manga_save_name,) in manga_images:
-            if not os.path.exists(manga_save_name):
-                logger.error(f"[{image_id}] Manga image file not found: {manga_save_name}")
+            check_manga_save_name = manga_save_name.replace('.zip', '.gif') if manga_save_name.endswith('.zip') else manga_save_name
+            if not os.path.exists(check_manga_save_name):
+                logger.error(f"[{image_id}] Manga image file not found: {check_manga_save_name}")
                 errors += 1
     if errors == 0:
         logger.info("Migration verification completed successfully!")
@@ -123,14 +130,16 @@ def perform_migration(conn: sqlite3.Connection, root_dir: str, dry_run: bool=Tru
         # Check for .zip files and convert to .gif for existence check
         check_save_name = save_name.replace('.zip', '.gif') if save_name.endswith('.zip') else save_name
         if not os.path.exists(check_save_name):
-            logger.warning(f"[{image_id}] save_name {check_save_name} does not exist (incomplete migration): checking directory.")
-            if not os.path.exists(os.path.dirname(check_save_name)):
-                logger.error(f"[{image_id}] directory {os.path.dirname(check_save_name)} does not exist")
-                if not dry_run:
-                    delete_images_by_member(conn, member_id)
-                    logger.warning(f"[{image_id}] DELETED ALL IMAGES FOR MEMBER: {member_id}")
+            logger.warning(f"[{image_id}] save_name {check_save_name} does not exist (incomplete migration)")
+            if not dry_run:
+                delete_images_by_member(conn, member_id)
+                logger.warning(f"[{image_id}] DELETED ALL IMAGES FOR MEMBER: {member_id}")
+                try:
+                    shutil.rmtree(os.path.dirname(check_save_name))
+                except FileNotFoundError:
+                    continue
             continue
-        new_save_name: str = os.path.join(root_dir, str(member_id), str(image_id))
+        new_save_name: str = os.path.join(root_dir, str(member_id), "pixiv_" + str(image_id))
         assert not os.path.exists(new_save_name), f"[{image_id}] directory_to_create {new_save_name} already exists"
 
         if not dry_run:
@@ -170,7 +179,10 @@ def perform_migration(conn: sqlite3.Connection, root_dir: str, dry_run: bool=Tru
         logger.info(f"[{image_id}] UPDATE MASTER IMAGE:         {save_name} -> {new_save_name}")
         logger.info(f"[{image_id}] DELETE OLD MASTER IMAGE:      {os.path.dirname(check_save_name)}")
         if not dry_run:
-            shutil.rmtree(os.path.dirname(check_save_name))
+            try:
+                shutil.rmtree(os.path.dirname(check_save_name))
+            except FileNotFoundError:
+                continue
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--database", type=str, default="db.sqlite")
