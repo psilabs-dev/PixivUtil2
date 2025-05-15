@@ -147,12 +147,14 @@ def perform_migration(root_dir: str,conn: sqlite3.Connection, dry_run: bool=True
 
 def main():
     parser = argparse.ArgumentParser()
+    parser.add_argument("--root-dir", type=str, default="downloads", help="root directory of the downloads")
     parser.add_argument("--database", type=str, default="db.sqlite")
     parser.add_argument("--not-dry-run", action="store_true", help="actually perform the migration (MAKE SURE YOU KNOW WHAT YOU ARE DOING)")
     parser.add_argument("--log-file", type=str, default=f"archive_migration_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log", 
                         help="Log file path")
     args = parser.parse_args()
 
+    root_dir = args.root_dir
     database_path = args.database
     conn = sqlite3.connect(database_path)
     not_dry_run = args.not_dry_run
@@ -164,7 +166,7 @@ def main():
 
     # VERIFY STAGE.
     logger.info("Running in DRY RUN mode to verify migration plan")
-    perform_migration(conn, dry_run=True)
+    perform_migration(root_dir, conn, dry_run=True)
 
     # EXECUTE STAGE.
     if not_dry_run:
@@ -172,7 +174,7 @@ def main():
             print(f"\rWARNING: THIS WILL ACTUALLY MIGRATE THE DATA. YOU HAVE {i} SECONDS TO CANCEL.", end="", flush=True)
             time.sleep(1)
         logger.info("\n\n         !!!PERFORMING MIGRATION!!!")
-        perform_migration(conn, dry_run=False)
+        perform_migration(root_dir, conn, dry_run=False)
         verify_migration(conn)
     else:
         logger.info("Dry run completed. Use --not-dry-run to perform the actual migration.")
