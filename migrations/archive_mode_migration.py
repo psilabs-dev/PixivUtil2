@@ -83,7 +83,7 @@ def verify_migration(conn: sqlite3.Connection):
             continue
         # For zip files, we need to verify the internal structure
         try:
-            with zipfile.ZipFile(save_name, 'r') as zip_ref:
+            with zipfile.ZipFile(save_name, 'r', compression=zipfile.ZIP_DEFLATED, compresslevel=9) as zip_ref:
                 manga_images = conn.execute("SELECT save_name FROM pixiv_manga_image WHERE image_id = ?", (image_id,)).fetchall()
                 for (manga_save_name,) in manga_images:
                     # For manga images, we just check if they exist in the zip
