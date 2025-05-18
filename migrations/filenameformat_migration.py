@@ -1,5 +1,5 @@
 """
-Script to handle filenameformat migration for a docker container (I've already rsync restored at least 10 times already while running this script)
+Script to handle filenameformat migration for a docker container (I've already rsync restored at least 20 times already while running this script)
 
 Renames filenameformat  {%member_id%} %artist%/{%image_id%} %title%/p_0%page_number% to %member_id%/pixiv_%image_id%/p_0%page_number%.
 Does not archive or change page filename.
