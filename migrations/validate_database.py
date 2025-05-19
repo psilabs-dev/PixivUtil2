@@ -65,7 +65,7 @@ def inner_main(conn: sqlite3.Connection, root_dir: str):
     LOGGER.info("Initializing validation results...")
     for master_image_row in cursor.execute("SELECT DISTINCT image_id, save_name FROM pixiv_master_image").fetchall():
         image_id: int = master_image_row[0]
-        save_name: int = master_image_row[1]
+        save_name_in_db: int = master_image_row[1]
         validation_results_by_image_id[image_id] = ValidationResultType.OK
         assert cursor.execute("SELECT 1 FROM pixiv_manga_image WHERE image_id = ? AND save_name = ? LIMIT 1").fetchone() is not None, f"[{image_id}] pixiv_manga_image does not contain pixiv_master_image."
     LOGGER.info("Validation results initialized.")
@@ -74,45 +74,45 @@ def inner_main(conn: sqlite3.Connection, root_dir: str):
     for master_image_row in cursor.execute("SELECT image_id, member_id, save_name FROM pixiv_master_image").fetchall():
         image_id: int = master_image_row[0]
         member_id: Optional[int] = master_image_row[1]
-        save_name: Optional[str] = master_image_row[2]
+        save_name_in_db: Optional[str] = master_image_row[2]
         if not member_id:
             validation_results_by_image_id[image_id] = ValidationResultType.IMAGE_ID_HAS_NO_MEMBER_ID
             LOGGER.error(f"[{image_id}] has no member ID.")
-        if not save_name:
+        if not save_name_in_db:
             validation_results_by_image_id[image_id] = ValidationResultType.IMAGE_ID_HAS_NO_SAVE_NAME
             LOGGER.error(f"[{image_id}] has no save name.")
         if validation_results_by_image_id[image_id] != ValidationResultType.OK:
             continue
 
         # check if manga images exist in filesystem.
-        __manga_image_save_name: str
+        __manga_image_save_name_in_fs: str
         __is_incomplete_download: bool = False
         for manga_image_row in cursor.execute("SELECT save_name FROM pixiv_manga_image WHERE image_id = ? ORDER BY page ASC", (image_id,)).fetchall():
-            manga_image_save_name: str = manga_image_row[0]
-            if not manga_image_save_name:
+            manga_image_save_name_in_db: str = manga_image_row[0]
+            if not manga_image_save_name_in_db:
                 LOGGER.error(f"[{image_id}] has no save name.")
                 __is_incomplete_download = True
                 continue
-            __manga_image_save_name: str = manga_image_save_name
-            if __manga_image_save_name.endswith(".zip"):
-                __manga_image_save_name = os.path.splitext(__manga_image_save_name)[0] + ".gif"
-            if not os.path.exists(__manga_image_save_name):
+            __manga_image_save_name_in_fs: str = manga_image_save_name_in_db
+            if __manga_image_save_name_in_fs.endswith(".zip"):
+                __manga_image_save_name_in_fs = os.path.splitext(__manga_image_save_name_in_fs)[0] + ".gif"
+            if not os.path.exists(__manga_image_save_name_in_fs):
                 __is_incomplete_download = True
-                LOGGER.error(f"[{image_id}] has incomplete download. Missing {__manga_image_save_name}.")
+                LOGGER.error(f"[{image_id}] has incomplete download. Missing {__manga_image_save_name_in_fs}.")
                 break
-        del __manga_image_save_name
+        del __manga_image_save_name_in_fs
 
         # check if master image exists in filesystem, and is contained in manga image.
-        __save_name: str = save_name
-        if save_name.endswith(".zip"):
-            __save_name = os.path.splitext(save_name)[0] + ".gif"
-        if not os.path.exists(__save_name):
+        __save_name_in_fs: str = save_name_in_db
+        if save_name_in_db.endswith(".zip"):
+            __save_name_in_fs = os.path.splitext(save_name_in_db)[0] + ".gif"
+        if not os.path.exists(__save_name_in_fs):
             validation_results_by_image_id[image_id] = ValidationResultType.INCOMPLETE_DOWNLOAD_MASTER_DNE
-            LOGGER.error(f"[{image_id}] has incomplete download. Missing {__save_name}.")
+            LOGGER.error(f"[{image_id}] has incomplete download. Missing {__save_name_in_fs}.")
         elif __is_incomplete_download:
             validation_results_by_image_id[image_id] = ValidationResultType.INCOMPLETE_DOWNLOAD_MASTER_EXISTS
-            LOGGER.error(f"[{image_id}] has incomplete download. Missing {__save_name}.")
-        del __save_name
+            LOGGER.error(f"[{image_id}] has incomplete download. Missing {__save_name_in_fs}.")
+        del __save_name_in_fs
     LOGGER.info("Master images validation complete.")
 
     # next scan for files and directories in root directory but not in database.
@@ -120,20 +120,18 @@ def inner_main(conn: sqlite3.Connection, root_dir: str):
     LOGGER.info("Scanning for orphan files and directories.")
     for root, dirs, files in os.walk(root_dir):
         
-        for dirname in dirs: # only check empty directories in the root directory.
+        for dirname in dirs: # add all empty directories to delete.
             dir_path: str = os.path.join(root, dirname)
             if os.listdir(dir_path):
                 continue
-            if cursor.execute("SELECT 1 FROM pixiv_manga_image WHERE INSTR(save_name, ?) > 0 LIMIT 1", (dirname,)).fetchone() is None:
-                orphan_directories.append(dir_path)
-                LOGGER.warning(f"Found orphan directory: {dir_path}")
+            orphan_directories.append(dir_path)
         
         for filename in files:
             file_path: str = os.path.join(root, filename)
-            __file_path: str = file_path
+            __file_path_in_db: str = file_path
             if file_path.endswith(".gif"):
-                __file_path = os.path.splitext(__file_path)[0] + ".zip"
-            if cursor.execute("SELECT 1 FROM pixiv_manga_image WHERE save_name = ? LIMIT 1", (__file_path,)).fetchone() is None:
+                __file_path_in_db = os.path.splitext(__file_path_in_db)[0] + ".zip"
+            if cursor.execute("SELECT 1 FROM pixiv_manga_image WHERE save_name = ? LIMIT 1", (__file_path_in_db,)).fetchone() is None:
                 orphan_files.append(file_path)
                 LOGGER.warning(f"Found orphan file: {file_path}")
     LOGGER.info("Orphan file and directory scanning complete.")
