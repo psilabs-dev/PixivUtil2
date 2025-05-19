@@ -63,9 +63,11 @@ def inner_main(conn: sqlite3.Connection, root_dir: str):
 
     cursor = conn.cursor()
     LOGGER.info("Initializing validation results...")
-    for master_image_row in cursor.execute("SELECT DISTINCT image_id FROM pixiv_master_image").fetchall():
+    for master_image_row in cursor.execute("SELECT DISTINCT image_id, save_name FROM pixiv_master_image").fetchall():
         image_id: int = master_image_row[0]
+        save_name: int = master_image_row[1]
         validation_results_by_image_id[image_id] = ValidationResultType.OK
+        assert cursor.execute("SELECT 1 FROM pixiv_manga_image WHERE image_id = ? AND save_name = ? LIMIT 1").fetchone() is not None, f"[{image_id}] pixiv_manga_image does not contain pixiv_master_image."
     LOGGER.info("Validation results initialized.")
 
     LOGGER.info("Validating master images...")
@@ -100,7 +102,7 @@ def inner_main(conn: sqlite3.Connection, root_dir: str):
                 break
         del __manga_image_save_name
 
-        # check if master image exists in filesystem.
+        # check if master image exists in filesystem, and is contained in manga image.
         __save_name: str = save_name
         if save_name.endswith(".zip"):
             __save_name = os.path.splitext(save_name)[0] + ".gif"
