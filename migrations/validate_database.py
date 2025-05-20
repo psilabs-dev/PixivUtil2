@@ -67,7 +67,6 @@ def inner_main(conn: sqlite3.Connection, root_dir: str):
         image_id: int = master_image_row[0]
         save_name_in_db: int = master_image_row[1]
         validation_results_by_image_id[image_id] = ValidationResultType.OK
-        assert cursor.execute("SELECT 1 FROM pixiv_manga_image WHERE image_id = ? AND save_name = ? LIMIT 1").fetchone() is not None, f"[{image_id}] pixiv_manga_image does not contain pixiv_master_image."
     LOGGER.info("Validation results initialized.")
 
     LOGGER.info("Validating master images...")
@@ -75,6 +74,9 @@ def inner_main(conn: sqlite3.Connection, root_dir: str):
         image_id: int = master_image_row[0]
         member_id: Optional[int] = master_image_row[1]
         save_name_in_db: Optional[str] = master_image_row[2]
+        if cursor.execute("SELECT 1 FROM pixiv_manga_image WHERE image_id = ? AND save_name = ? LIMIT 1", (image_id, save_name_in_db)).fetchone() is None:
+            validation_results_by_image_id[image_id] = ValidationResultType.INCOMPLETE_DOWNLOAD_MASTER_DNE
+            LOGGER.error(f"[{image_id}] pixiv_manga_image does not contain pixiv_master_image.")
         if not member_id:
             validation_results_by_image_id[image_id] = ValidationResultType.IMAGE_ID_HAS_NO_MEMBER_ID
             LOGGER.error(f"[{image_id}] has no member ID.")
@@ -130,10 +132,22 @@ def inner_main(conn: sqlite3.Connection, root_dir: str):
             file_path: str = os.path.join(root, filename)
             __file_path_in_db: str = file_path
             if file_path.endswith(".gif"):
-                __file_path_in_db = os.path.splitext(__file_path_in_db)[0] + ".zip"
-            if cursor.execute("SELECT 1 FROM pixiv_manga_image WHERE save_name = ? LIMIT 1", (__file_path_in_db,)).fetchone() is None:
-                orphan_files.append(file_path)
-                LOGGER.warning(f"Found orphan file: {file_path}")
+                # gifs can be either zip or gif files in the database.
+                # crash-out inducing behavior smh my head
+                __file_exists: bool = False
+                for ext in [".zip", ".gif"]:
+                    __file_path_in_db = os.path.splitext(__file_path_in_db)[0] + ext
+                    if cursor.execute("SELECT 1 FROM pixiv_manga_image WHERE save_name = ? LIMIT 1", (__file_path_in_db,)).fetchone() is not None:
+                        __file_exists = True
+                        break
+                if not __file_exists:
+                    orphan_files.append(file_path)
+                    LOGGER.warning(f"Found orphan file: {file_path}")
+                    continue
+            else:
+                if cursor.execute("SELECT 1 FROM pixiv_manga_image WHERE save_name = ? LIMIT 1", (__file_path_in_db,)).fetchone() is None:
+                    orphan_files.append(file_path)
+                    LOGGER.warning(f"Found orphan file: {file_path}")
     LOGGER.info("Orphan file and directory scanning complete.")
 
     # close connection to database.
