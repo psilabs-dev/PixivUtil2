@@ -8,7 +8,6 @@ Does not archive or change page filename.
 import argparse
 import os
 import sqlite3
-from datetime import datetime
 
 def inner_main(conn: sqlite3.Connection, root_dir: str):
     
