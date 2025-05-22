@@ -143,13 +143,6 @@ class PixivConfig():
         ConfigItem("Filename", "customBadChars", "", followup=PixivHelper.parse_custom_sanitizer),
         ConfigItem("Filename", "customCleanUpRe", "", followup=PixivHelper.parse_custom_clean_up_re),
 
-        # optimized for high compression + constant time reads
-        # sacrificing create time speed.
-        ConfigItem("Filename", "createPixivArchive", True),
-        ConfigItem("Filename", "createPixivArchiveCompressionType", "ZIP_DEFLATED",
-                   restriction=lambda algorithm: algorithm in {"ZIP_STORED", "ZIP_DEFLATED", "ZIP_BZIP2", "ZIP_LZMA"}),
-        ConfigItem("Filename", "createPixivArchiveCompressionLevel", 9, restriction=lambda level: level in range(0, 10)),
-
         ConfigItem("Authentication", "username", ""),
         ConfigItem("Authentication", "password", ""),
         ConfigItem("Authentication", "cookie", os.getenv("PIXIVUTIL2_COOKIE")),
@@ -232,6 +225,13 @@ class PixivConfig():
         ConfigItem("DownloadControl", "postProcessingCmd", ""),
         ConfigItem("DownloadControl", "extensionFilter", ""),
         ConfigItem("DownloadControl", "downloadBuffer", 512, restriction=lambda x: int(x) > 0),
+
+        # optimized for high compression + constant time reads
+        # sacrificing create time speed.
+        ConfigItem("DownloadControl", "createPixivArchive", True),
+        ConfigItem("DownloadControl", "createPixivArchiveCompressionType", "ZIP_DEFLATED",
+                   restriction=lambda algorithm: algorithm in {"ZIP_STORED", "ZIP_DEFLATED", "ZIP_BZIP2", "ZIP_LZMA"}),
+        ConfigItem("DownloadControl", "createPixivArchiveCompressionLevel", 9, restriction=lambda level: level in range(0, 10)),
     ]
 
     def __init__(self):
