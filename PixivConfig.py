@@ -111,11 +111,11 @@ class PixivConfig():
         # configured to eliminate possibility of duplicates.
         ConfigItem("Filename",
                    "filenameFormat",
-                   "%member_id%/%image_id%/p_0%page_number%",
+                   "%member_id%/pixiv_%image_id%/p_0%page_number%",
                    restriction=stringNotEmpty),
         ConfigItem("Filename",
                    "filenameMangaFormat",
-                   "%member_id%/%image_id%/p_0%page_number%",
+                   "%member_id%/pixiv_%image_id%/p_0%page_number%",
                    restriction=lambda x: stringNotEmpty(x) and (x.find("%urlFilename%") >= 0 or (x.find('%page_index%') >= 0 or x.find('%page_number%') >= 0)),
                    error_message="At least %urlFilename%, %page_index%, or %page_number% is required in"),
         ConfigItem("Filename", "filenameInfoFormat",
