@@ -428,6 +428,12 @@ def process_image(caller,
 
             db.updateImage(image.imageId, image.imageTitle, filename, image.imageMode)
 
+            # Save date info for LANraragi metadata parity
+            created_epoch = image.get_created_date_epoch()
+            uploaded_epoch = image.get_uploaded_date_epoch()
+            if created_epoch is not None or uploaded_epoch is not None:
+                db.insertDateInfo(image.imageId, created_epoch, uploaded_epoch)
+
             if len(manga_files) > 0:
                 db.insertMangaImages(manga_files)
 
