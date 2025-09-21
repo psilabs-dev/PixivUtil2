@@ -108,13 +108,14 @@ class PixivConfig():
         ConfigItem("Settings", "useLocalTimezone", False),
         ConfigItem("Settings", "defaultSketchOption", ""),
 
+        # configured to eliminate possibility of duplicates.
         ConfigItem("Filename",
                    "filenameFormat",
-                   "{%member_id%} %artist%/{%image_id%} %title%/p_0%page_number%",
+                   "%member_id%/pixiv_%image_id%/p_0%page_number%",
                    restriction=stringNotEmpty),
         ConfigItem("Filename",
                    "filenameMangaFormat",
-                   "{%member_id%} %artist%/{%image_id%} %title%/p_0%page_number%",
+                   "%member_id%/pixiv_%image_id%/p_0%page_number%",
                    restriction=lambda x: stringNotEmpty(x) and (x.find("%urlFilename%") >= 0 or (x.find('%page_index%') >= 0 or x.find('%page_number%') >= 0)),
                    error_message="At least %urlFilename%, %page_index%, or %page_number% is required in"),
         ConfigItem("Filename", "filenameInfoFormat",
@@ -207,7 +208,7 @@ class PixivConfig():
         ConfigItem("DownloadControl", "minFileSize", 0),
         ConfigItem("DownloadControl", "maxFileSize", 0),
         ConfigItem("DownloadControl", "checkLastModified", True),
-        ConfigItem("DownloadControl", "alwaysCheckFileSize", True),
+        ConfigItem("DownloadControl", "alwaysCheckFileSize", False),
         ConfigItem("DownloadControl", "overwrite", False),
         ConfigItem("DownloadControl", "backupOldFile", False),
         ConfigItem("DownloadControl", "dayLastUpdated", 7),
@@ -224,6 +225,13 @@ class PixivConfig():
         ConfigItem("DownloadControl", "postProcessingCmd", ""),
         ConfigItem("DownloadControl", "extensionFilter", ""),
         ConfigItem("DownloadControl", "downloadBuffer", 512, restriction=lambda x: int(x) > 0),
+
+        # optimized for high compression + constant time reads
+        # sacrificing create time speed.
+        ConfigItem("DownloadControl", "createPixivArchive", True),
+        ConfigItem("DownloadControl", "createPixivArchiveCompressionType", "ZIP_DEFLATED",
+                   restriction=lambda algorithm: algorithm in {"ZIP_STORED", "ZIP_DEFLATED", "ZIP_BZIP2", "ZIP_LZMA"}),
+        ConfigItem("DownloadControl", "createPixivArchiveCompressionLevel", 9, restriction=lambda level: level in range(0, 10)),
     ]
 
     def __init__(self):
