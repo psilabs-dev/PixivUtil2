@@ -208,7 +208,7 @@ class PixivConfig():
         ConfigItem("DownloadControl", "minFileSize", 0),
         ConfigItem("DownloadControl", "maxFileSize", 0),
         ConfigItem("DownloadControl", "checkLastModified", True),
-        ConfigItem("DownloadControl", "alwaysCheckFileSize", False),
+        ConfigItem("DownloadControl", "alwaysCheckFileSize", True),
         ConfigItem("DownloadControl", "overwrite", False),
         ConfigItem("DownloadControl", "backupOldFile", False),
         ConfigItem("DownloadControl", "dayLastUpdated", 7),
