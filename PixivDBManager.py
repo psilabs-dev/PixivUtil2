@@ -32,6 +32,13 @@ class PixivDBManager(object):
             PixivHelper.print_and_log(
                 'info', "Using custom DB Path: " + target)
         self.rootDirectory = root_directory
+        
+        # Ensure the directory for the database file exists
+        db_dir = os.path.dirname(target)
+        if db_dir and not os.path.exists(db_dir):
+            PixivHelper.print_and_log('info', f"Creating database directory: {db_dir}")
+            os.makedirs(db_dir, exist_ok=True)
+            
         self.conn = sqlite3.connect(target, timeout)
 
     def close(self):
