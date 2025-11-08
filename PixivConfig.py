@@ -154,6 +154,7 @@ class PixivConfig():
         ConfigItem("Authentication", "password", ""),
         ConfigItem("Authentication", "cookie", os.getenv("PIXIVUTIL2_COOKIE")),
         ConfigItem("Authentication", "cookieFanbox", ""),
+        ConfigItem("Authentication", "cookieFanboxTemp", ""),
         ConfigItem("Authentication", "refresh_token", ""),
         ConfigItem("Authentication", "cf_clearance", ""),
         ConfigItem("Authentication", "cf_bm", ""),
@@ -165,6 +166,10 @@ class PixivConfig():
         ConfigItem("Pixiv", "autoAddMember", True),
         ConfigItem("Pixiv", "autoAddTag", True),
         ConfigItem("Pixiv", "autoAddCaption", True),
+        ConfigItem("Pixiv", "autoAddMember", True),
+        ConfigItem("Pixiv", "autoAddTag", True),
+        ConfigItem("Pixiv", "autoAddCaption", True),
+        ConfigItem("Pixiv", "autoAddSeries", True),
         ConfigItem("Pixiv", "aiDisplayFewer", False),
 
         ConfigItem("FANBOX", "filenameFormatFanboxCover",
