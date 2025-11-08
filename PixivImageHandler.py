@@ -614,6 +614,9 @@ def process_image(caller,
                     PixivHelper.print_and_log('error', f"Files archived does not match total. Expected {total} but got {archived_count}.")
                     result = PixivConstant.PIXIVUTIL_NOT_OK
 
+        # Save AI type to DB
+        db.insertAiInfo(image_id, image.ai_type)
+
         if in_db and not exists:
             result = PixivConstant.PIXIVUTIL_CHECK_DOWNLOAD  # There was something in the database which had not been downloaded
 
@@ -629,6 +632,12 @@ def process_image(caller,
                 PixivHelper.print_and_log('error', f'Failed to insert image id:{image.imageId} to DB')
 
             db.updateImage(image.imageId, image.imageTitle, filename, image.imageMode)
+
+            # Save date info for LANraragi metadata parity
+            created_epoch = image.get_created_date_epoch()
+            uploaded_epoch = image.get_uploaded_date_epoch()
+            if created_epoch is not None or uploaded_epoch is not None:
+                db.insertDateInfo(image.imageId, created_epoch, uploaded_epoch)
 
             if len(manga_files) > 0:
                 if archive_mode_update_manga_image_paths:

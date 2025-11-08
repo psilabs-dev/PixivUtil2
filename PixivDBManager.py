@@ -32,6 +32,13 @@ class PixivDBManager(object):
             PixivHelper.print_and_log(
                 'info', "Using custom DB Path: " + target)
         self.rootDirectory = root_directory
+        
+        # Ensure the directory for the database file exists
+        db_dir = os.path.dirname(target)
+        if db_dir and not os.path.exists(db_dir):
+            PixivHelper.print_and_log('info', f"Creating database directory: {db_dir}")
+            os.makedirs(db_dir, exist_ok=True)
+            
         self.conn = sqlite3.connect(target, timeout)
 
     def close(self):
@@ -129,6 +136,24 @@ class PixivDBManager(object):
                             last_update_date DATE,
                             PRIMARY KEY (image_id, tag_id)
                             )''')
+            
+            # image ID is primary key, may not reference to pixiv_master_image as it may not
+            # be downloaded. Used for filtering out AI images.
+            c.execute('''CREATE TABLE IF NOT EXISTS pixiv_ai_info (
+                            image_id INTEGER PRIMARY KEY,
+                            ai_type INTEGER,
+                            created_date DATE,
+                            last_update_date DATE
+            )''')
+            
+            # Date info table for created and uploaded dates (LANraragi metadata parity)
+            c.execute('''CREATE TABLE IF NOT EXISTS pixiv_date_info (
+                            image_id INTEGER PRIMARY KEY,
+                            created_date_epoch INTEGER,
+                            uploaded_date_epoch INTEGER,
+                            created_date DATE,
+                            last_update_date DATE
+            )''')
             self.conn.commit()
 
             # Pixiv Series
@@ -1117,6 +1142,72 @@ class PixivDBManager(object):
                         fileExists = True
                         break
         return fileExists
+
+    def insertAiInfo(self, image_id, ai_type):
+        try:
+            c = self.conn.cursor()
+            image_id = int(image_id)
+            ai_type = int(ai_type)
+            c.execute('''INSERT OR IGNORE INTO pixiv_ai_info (image_id, ai_type, created_date, last_update_date) 
+                      VALUES (?, ?, datetime('now'), datetime('now'))
+                      ON CONFLICT(image_id) DO UPDATE SET 
+                      ai_type = excluded.ai_type,
+                      last_update_date = datetime('now')''',
+                      (image_id, ai_type))
+            self.conn.commit()
+        except BaseException:
+            print('Error at insertAiInfo():', str(sys.exc_info()))
+            print('failed')
+            raise
+        finally:
+            c.close()
+    
+    def selectAiTypeByImageId(self, image_id):
+        try:
+            c = self.conn.cursor()
+            image_id = int(image_id)
+            c.execute('''SELECT ai_type FROM pixiv_ai_info WHERE image_id = ?''', (image_id,))
+            result = c.fetchone()
+            return result[0] if result is not None else None
+        except BaseException:
+            print('Error at selectAiTypeByImageId():', str(sys.exc_info()))
+            print('failed')
+            raise
+        finally:
+            c.close()
+
+    def insertDateInfo(self, image_id, created_date_epoch, uploaded_date_epoch):
+        try:
+            c = self.conn.cursor()
+            image_id = int(image_id)
+            c.execute('''INSERT OR IGNORE INTO pixiv_date_info (image_id, created_date_epoch, uploaded_date_epoch, created_date, last_update_date) 
+                      VALUES (?, ?, ?, datetime('now'), datetime('now'))
+                      ON CONFLICT(image_id) DO UPDATE SET 
+                      created_date_epoch = excluded.created_date_epoch,
+                      uploaded_date_epoch = excluded.uploaded_date_epoch,
+                      last_update_date = datetime('now')''',
+                      (image_id, created_date_epoch, uploaded_date_epoch))
+            self.conn.commit()
+        except BaseException:
+            print('Error at insertDateInfo():', str(sys.exc_info()))
+            print('failed')
+            raise
+        finally:
+            c.close()
+
+    def selectDateInfoByImageId(self, image_id):
+        try:
+            c = self.conn.cursor()
+            image_id = int(image_id)
+            c.execute('''SELECT created_date_epoch, uploaded_date_epoch FROM pixiv_date_info WHERE image_id = ?''', (image_id,))
+            result = c.fetchone()
+            return result if result is not None else None
+        except BaseException:
+            print('Error at selectDateInfoByImageId():', str(sys.exc_info()))
+            print('failed')
+            raise
+        finally:
+            c.close()
 
     def cleanUp(self):
         anim_ext = ['.zip', '.gif', '.apng', '.ugoira', '.webm']
