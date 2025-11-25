@@ -4,13 +4,8 @@ import platform
 import sys
 from os import path
 
-try:
-    from setuptools import convert_path, find_packages, setup
-    SETUPTOOLS_USED = True
-except ImportError:
-    from distutils.core import find_packages, setup
-    from distutils.util import convert_path
-    SETUPTOOLS_USED = False
+from setuptools import find_packages, setup
+SETUPTOOLS_USED = True
 
 isWindows = (platform.system() == "Windows")
 ranWithPy3 = sys.version_info >= (3, 0)
@@ -30,7 +25,7 @@ class bcolors:
 
 def get_version():
     main_ns = {}
-    ver_path = convert_path('PixivConstant.py')
+    ver_path = path.join(path.abspath(path.dirname(__file__)), 'common', 'PixivConstant.py')
     with open(ver_path) as ver_file:
         exec(ver_file.read(), main_ns)
     version = main_ns['PIXIVUTIL_VERSION']
@@ -90,7 +85,7 @@ with open(path.join(here, 'requirements.txt')) as f:
 install_requires = [x.strip() for x in install_requires]
 
 # get long_description
-readme_path = convert_path('readme.md')
+readme_path = path.join(here, 'readme.md')
 with open(readme_path, 'r', encoding='utf-8') as readme_file:
     long_description = readme_file.read()
 
