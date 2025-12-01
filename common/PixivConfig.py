@@ -84,10 +84,10 @@ class PixivConfig():
         ConfigItem("IrfanView", "startIrfanSlide", False),
         ConfigItem("IrfanView", "createDownloadLists", False),
 
-        ConfigItem("Settings", "downloadListDirectory", ".", followup=os.path.expanduser),
+        ConfigItem("Settings", "downloadListDirectory", "." + os.sep + "downloads", followup=os.path.expanduser),
         ConfigItem("Settings", "useList", False),
         ConfigItem("Settings", "processFromDb", True),
-        ConfigItem("Settings", "rootDirectory", "."),
+        ConfigItem("Settings", "rootDirectory", "." + os.sep + "downloads"),
         ConfigItem("Settings", "downloadAvatar", False),
         ConfigItem("Settings", "useSuppressTags", False),
         ConfigItem("Settings", "tagsLimit", -1),
@@ -99,22 +99,22 @@ class PixivConfig():
         ConfigItem("Settings", "includeSeriesJSON", False),
         ConfigItem("Settings", "writeImageXMP", False),
         ConfigItem("Settings", "writeImageXMPPerImage", False),
-        ConfigItem("Settings", "verifyImage", False),
+        ConfigItem("Settings", "verifyImage", True),
         ConfigItem("Settings", "writeUrlInDescription", False),
         ConfigItem("Settings", "stripHTMLTagsFromCaption", False),
         ConfigItem("Settings", "urlBlacklistRegex", ""),
-        ConfigItem("Settings", "dbPath", ""),
+        ConfigItem("Settings", "dbPath", "." + os.sep + ".pixivUtil2" + os.sep + "db" + os.sep + "db.sqlite"),
         ConfigItem("Settings", "setLastModified", True),
         ConfigItem("Settings", "useLocalTimezone", False),
         ConfigItem("Settings", "defaultSketchOption", ""),
 
         ConfigItem("Filename",
                    "filenameFormat",
-                   "%artist% (%member_id%)" + os.sep + "%urlFilename% - %title%",
+                   "%member_id%" + os.sep + "pixiv_%image_id%" + os.sep + "p_0%page_number%",
                    restriction=stringNotEmpty),
         ConfigItem("Filename",
                    "filenameMangaFormat",
-                   "%artist% (%member_id%)" + os.sep + "%urlFilename% - %title%",
+                   "%member_id%" + os.sep + "pixiv_%image_id%" + os.sep + "p_0%page_number%",
                    restriction=lambda x: stringNotEmpty(x) and (x.find("%urlFilename%") >= 0 or (x.find('%page_index%') >= 0 or x.find('%page_number%') >= 0)),
                    error_message="At least %urlFilename%, %page_index%, or %page_number% is required in"),
         ConfigItem("Filename", "filenameInfoFormat",
@@ -144,7 +144,7 @@ class PixivConfig():
 
         ConfigItem("Authentication", "username", ""),
         ConfigItem("Authentication", "password", ""),
-        ConfigItem("Authentication", "cookie", ""),
+        ConfigItem("Authentication", "cookie", os.getenv("PIXIVUTIL2_COOKIE")),
         ConfigItem("Authentication", "cookieFanbox", ""),
         ConfigItem("Authentication", "cookieFanboxTemp", ""),
         ConfigItem("Authentication", "refresh_token", ""),
@@ -155,10 +155,10 @@ class PixivConfig():
         ConfigItem("Pixiv", "r18mode", False),
         ConfigItem("Pixiv", "r18Type", 0),  # Issue #439
         ConfigItem("Pixiv", "dateFormat", ""),
-        ConfigItem("Pixiv", "autoAddMember", False),
-        ConfigItem("Pixiv", "autoAddTag", False),
-        ConfigItem("Pixiv", "autoAddCaption", False),
-        ConfigItem("Pixiv", "autoAddSeries", False),
+        ConfigItem("Pixiv", "autoAddMember", True),
+        ConfigItem("Pixiv", "autoAddTag", True),
+        ConfigItem("Pixiv", "autoAddCaption", True),
+        ConfigItem("Pixiv", "autoAddSeries", True),
         ConfigItem("Pixiv", "aiDisplayFewer", False),
 
         ConfigItem("FANBOX", "filenameFormatFanboxCover",
@@ -180,7 +180,7 @@ class PixivConfig():
         ConfigItem("FANBOX", "checkDBProcessHistory", False),
         ConfigItem("FANBOX", "listPathFanbox", "listfanbox.txt"),
 
-        ConfigItem("FFmpeg", "ffmpeg", "ffmpeg.exe"),
+        ConfigItem("FFmpeg", "ffmpeg", "/usr/bin/ffmpeg"),
         ConfigItem("FFmpeg", "ffmpegCodec", "libvpx-vp9"),
         ConfigItem("FFmpeg", "ffmpegExt", "webm"),
         ConfigItem("FFmpeg", "ffmpegParam", "-lossless 0 -crf 15 -b 0 -vsync 0 -pix_fmt yuv420p"),
@@ -196,15 +196,15 @@ class PixivConfig():
         ConfigItem("FFmpeg", "verboseOutput", False),
 
         ConfigItem("Ugoira", "writeUgoiraInfo", False),
-        ConfigItem("Ugoira", "createUgoira", False),
+        ConfigItem("Ugoira", "createUgoira", True),
         ConfigItem("Ugoira", "createMkv", False),
         ConfigItem("Ugoira", "createWebm", False),
         ConfigItem("Ugoira", "createWebp", False),
-        ConfigItem("Ugoira", "createGif", False),
+        ConfigItem("Ugoira", "createGif", True),
         ConfigItem("Ugoira", "createApng", False),
         ConfigItem("Ugoira", "createAvif", False),
-        ConfigItem("Ugoira", "deleteUgoira", False),
-        ConfigItem("Ugoira", "deleteZipFile", False),
+        ConfigItem("Ugoira", "deleteUgoira", True),
+        ConfigItem("Ugoira", "deleteZipFile", True),
 
         ConfigItem("DownloadControl", "minFileSize", 0),
         ConfigItem("DownloadControl", "maxFileSize", 0),
@@ -226,10 +226,10 @@ class PixivConfig():
         ConfigItem("DownloadControl", "postProcessingCmd", ""),
         ConfigItem("DownloadControl", "extensionFilter", ""),
         ConfigItem("DownloadControl", "downloadBuffer", 512, restriction=lambda x: int(x) > 0),
-        ConfigItem("DownloadControl", "createPixivArchive", False),
-        ConfigItem("DownloadControl", "createPixivArchiveCompressionType", "ZIP_STORED",
+        ConfigItem("DownloadControl", "createPixivArchive", True),
+        ConfigItem("DownloadControl", "createPixivArchiveCompressionType", "ZIP_DEFLATED",
                    restriction=lambda algorithm: algorithm in {"ZIP_STORED", "ZIP_DEFLATED", "ZIP_BZIP2", "ZIP_LZMA"}),
-        ConfigItem("DownloadControl", "createPixivArchiveCompressionLevel", 0, restriction=lambda level: level in range(0, 10)),
+        ConfigItem("DownloadControl", "createPixivArchiveCompressionLevel", 9, restriction=lambda level: level in range(0, 10)),
     ]
 
     def __init__(self):
@@ -255,9 +255,7 @@ class PixivConfig():
         else:
             self.configFileLocation = script_path + os.sep + 'config.ini'
 
-        self.configFileLocation = os.path.abspath(self.configFileLocation)
-
-        print(f'Reading {self.configFileLocation} ...')
+        print('Reading', self.configFileLocation, '...')
         config = configparser.RawConfigParser()
 
         try:
