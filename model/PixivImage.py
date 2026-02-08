@@ -67,6 +67,7 @@ class PixivImage (object):
     fromBookmark = False
     worksDateDateTime = datetime.fromordinal(1)
     js_createDate = None
+    js_uploadDate = None
     bookmark_count = -1
     image_response_count = -1
     ugoira_data = ""
@@ -225,6 +226,9 @@ class PixivImage (object):
         self.worksDateDateTime = datetime_z.parse_datetime(root["createDate"])
         assert (self.worksDateDateTime is not None)
         self.js_createDate = root["createDate"]  # store for json file
+        # uploadDate : "2018-06-08T15:00:04+00:00",
+        if "uploadDate" in root:
+            self.js_uploadDate = root["uploadDate"]
         # Issue #420
         if self._tzInfo is not None:
             self.worksDateDateTime = self.worksDateDateTime.astimezone(self._tzInfo)
@@ -625,6 +629,35 @@ class PixivImage (object):
                 translated_tags.append(tag)
         return translated_tags
 
+    def get_date_epoch_seconds(self, date_string):
+        """Convert ISO 8601 formatted date to epoch seconds (LANraragi metadata parity)"""
+        if not date_string:
+            return None
+        try:
+            # Parse the full ISO 8601 date with timezone
+            import re
+            from datetime import datetime
+            import datetime_z
+            
+            # Use the same parsing logic as LANraragi
+            # Remove timezone part for manual conversion to handle it like LANraragi
+            cleaned_date = re.sub(r'(\+\d{2}:\d{2})$', '', date_string)
+            if 'T' in cleaned_date:
+                # Parse as naive datetime and treat as UTC (like LANraragi does)
+                dt = datetime.fromisoformat(cleaned_date)
+                # Convert to UTC timestamp
+                return int(dt.replace(tzinfo=datetime_z.utc).timestamp())
+            return None
+        except (ValueError, ImportError):
+            return None
+
+    def get_created_date_epoch(self):
+        """Get created date as epoch seconds"""
+        return self.get_date_epoch_seconds(self.js_createDate)
+    
+    def get_uploaded_date_epoch(self):
+        """Get uploaded date as epoch seconds"""
+        return self.get_date_epoch_seconds(self.js_uploadDate)
 
 class PixivMangaSeries:
     manga_series_id: int = 0
