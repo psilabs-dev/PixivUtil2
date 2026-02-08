@@ -29,6 +29,36 @@ Schema changes include the inclusion of a `pixiv_date_info` table.
 
 - `PIXIVUTIL2_COOKIE` environment variable-based cookie loading is enabled. This allows PixivUtil2 to be run as a Dockerized worker container for convenient image deployment.
 
+## Downstream Branch Naming Conventions
+
+Development branches targeting `server-mode/main` must use the `server-mode/*` or `server-mode-v*` branch pattern; this also applies to all fixes or patches which target an existing, downstream-only feature or change. Other branches targeting the upstream master branch must use a "bugfix", "dev", or "feature" branch pattern instead. Developers working on a feature for server mode should read the `SERVER_README.md` file.
+
+> refer to `common/PixivConstant.py::PIXIVUTIL_SERVER_VERSION` for current version.
+
+Development of new versions of server mode shall include a version in their namespace. For example:
+
+- "server-mode-v1.2.3/main" (main development branch of server mode v1.2.3)
+
+### Dev Branches
+
+In the event that an upstream PR is not merged, a temporary downstream dev branch may be created for the purposes of PixivUtil server deployment:
+
+- "server-mode/dev"
+- "server-mode-v1.2.3/dev"
+
+Dev (or patch) branches may contain changes from upstream-targeting PRs, such as upstream features or bug fixes. Dev branches shall persist until the PR is merged or closed. If a PR is closed, then the changes shall be considered a downstream-only change and merged permanently into downstream main branches.
+
+### Tag Conventions
+
+Tags are used by PixivUtil server, and will use the Server Mode version followed by optional suffix.
+
+- "v.0.1.0"
+- "v.0.1.0-patch"
+- "v.0.1.0-dev"
+
+It is understood that all versions correspond to Server Mode versions, not upstream versions, unless explicitly specified: "v.0.1.0-upstream".
+
+
 ## Changelog
 
 The following changes are downstream features and bugfixes only. Upstream features, bug fixes, and other changes shall not be discussed in this changelog.
