@@ -619,7 +619,6 @@ class PixivImage (object):
             # Parse the full ISO 8601 date with timezone
             import re
             from datetime import datetime
-            import datetime_z
             
             # Use the same parsing logic as LANraragi
             # Remove timezone part for manual conversion to handle it like LANraragi
