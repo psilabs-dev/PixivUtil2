@@ -642,7 +642,10 @@ def process_image(caller,
 
             if metadata_only:
                 filename = r[0] if in_db else 'N/A'
-            db.updateImage(image.imageId, image.imageTitle, filename, image.imageMode)
+
+            # Only update caption when autoAddCaption is enabled; otherwise preserve existing value.
+            caption_to_update = image.imageCaption if config.autoAddCaption else None
+            db.updateImage(image.imageId, image.imageTitle, filename, image.imageMode, caption=caption_to_update)
 
             # Save date info
             created_epoch = image.get_created_date_epoch()
