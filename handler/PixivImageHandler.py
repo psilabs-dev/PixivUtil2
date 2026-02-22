@@ -476,8 +476,9 @@ def process_image(caller,
                         manga_files.append((image_id, page, filename))
                     page = page + 1
 
-                except URLError:
-                    PixivHelper.print_and_log('error', f'Error when download_image(), giving up url: {img}')
+                except URLError as url_err:
+                    PixivHelper.print_and_log('error', f'Error when download_image(), network failure for url: {img}')
+                    raise PixivException(f'Network failure when downloading: {img}', errorCode=PixivException.DOWNLOAD_FAILED_NETWORK) from url_err
                 PixivHelper.print_and_log(None, '')
 
                 # XMP image info per images
