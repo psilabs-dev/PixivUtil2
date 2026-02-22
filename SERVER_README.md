@@ -63,6 +63,10 @@ It is understood that all versions correspond to Server Mode versions, not upstr
 
 The following changes are downstream features and bugfixes only. Upstream features, bug fixes, and other changes shall not be discussed in this changelog.
 
+2026-02-22
+
+- When downloading via PixivImageHandler, connection failures would result in URL being skipped silently. Explicitly raise PixivException during image downloads instead for caller-side handling. https://github.com/psilabs-dev/PixivUtil2/issues/37
+
 2026-02-07
 
 - Fixed import bug causing created and uploaded dates of artworks to not be saved, and added corresponding unit tests.
