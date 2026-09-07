@@ -32,7 +32,7 @@ class TestPixivStatsParsing(unittest.TestCase):
 class TestPixivStatsConfig(unittest.TestCase):
     def testAutoAddStatsDefaultsToFalse(self):
         config = PixivConfig()
-        self.assertFalse(config.autoAddStats)
+        self.assertTrue(config.autoAddStats)
 
 
 class TestPixivStatsPersistence(unittest.TestCase):

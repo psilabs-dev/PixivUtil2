@@ -476,8 +476,9 @@ def process_image(caller,
                         manga_files.append((image_id, page, filename))
                     page = page + 1
 
-                except URLError:
-                    PixivHelper.print_and_log('error', f'Error when download_image(), giving up url: {img}')
+                except URLError as url_err:
+                    PixivHelper.print_and_log('error', f'Error when download_image(), network failure for url: {img}')
+                    raise PixivException(f'Network failure when downloading: {img}', errorCode=PixivException.DOWNLOAD_FAILED_NETWORK) from url_err
                 PixivHelper.print_and_log(None, '')
 
                 # XMP image info per images
@@ -651,6 +652,12 @@ def process_image(caller,
             if config.autoAddStats:
                 db.insertStats(image.imageId, image.jd_rtv, image.jd_rtc,
                                image.bookmark_count, image.comment_count, image.image_response_count)
+
+            # Save date info
+            created_epoch = image.get_created_date_epoch()
+            uploaded_epoch = image.get_uploaded_date_epoch()
+            if created_epoch is not None or uploaded_epoch is not None:
+                db.insertDateInfo(image.imageId, created_epoch, uploaded_epoch)
 
             if len(manga_files) > 0:
                 if archive_mode_update_manga_image_paths:
